@@ -50,5 +50,15 @@ class LinkFilter(Filter):
         links = self.URL_PATTERN.findall(comment.text)
         if links:
             comment.flagged = True
-            comment.reasons.append(f"{self.name}: contiene {len(links)} enlace(s) externo(s)")
+            comment.reasons.append(f"{self.name}: contiene {len(links)} enlaces externos")
+        return super().handle(comment)
+
+
+class CapsFilter(Filter):
+    def handle(self, comment: Comment) -> Comment:
+        words = comment.text.split()
+        caps_words = [w for w in words if w.isalpha() and w.isupper()]
+        if caps_words:
+            comment.flagged = True
+            comment.reasons.append(f"{self.name}: palabras en mayusculas: {caps_words}")
         return super().handle(comment)

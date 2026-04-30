@@ -1,6 +1,7 @@
 from comment import Comment
-from filters import SpamFilter, ProfanityFilter, LengthFilter, LinkFilter
+from filters import SpamFilter, ProfanityFilter, LengthFilter, LinkFilter, CapsFilter
 from moderation_chain import ModerationChain
+from config import FILTERS_ORDER, MAX_COMMENT_LENGTH
 
 
 def print_result(comment: Comment):
@@ -14,44 +15,79 @@ def print_result(comment: Comment):
 
 def print_chain(chain: ModerationChain):
     nombres = [f.name for f in chain.filters]
-    print(f"Cadena actual: {' → '.join(nombres)}\n")
+    print(f"Cadena actual: {' -> '.join(nombres)}\n")
 
 
 def main():
-    filters = [
-        SpamFilter("FiltroSpam"),
-        ProfanityFilter("FiltroPalabrasSoeces"),
-        LengthFilter("FiltroLongitud", max_length=100),
-        LinkFilter("FiltroEnlaces"),
+    FILTER_MAP = {
+        "SpamFilter": SpamFilter("FiltroSpam"),
+        "ProfanityFilter": ProfanityFilter("FiltroPalabrasSoeces"),
+        "LengthFilter": LengthFilter("FiltroLongitud", max_length=MAX_COMMENT_LENGTH),
+        "LinkFilter": LinkFilter("FiltroEnlaces"),
+    }
+    filters = [FILTER_MAP[name] for name in FILTERS_ORDER]
+
+    comments = [
+        Comment(text="Este producto es genial, me encanto!"),
+        Comment(text="Oferta especial, click aqui para ganar dinero gratis"),
+        Comment(text="Eres un idiota y un inutil"),
+        Comment(text="Mira este enlace: https://ejemplo.com para mas info"),
+        Comment(text="Comentario muy largo: " + "a" * 200),
     ]
 
-    # --- Cadena original ---
-    print("=== CADENA ORIGINAL ===")
+    print("=== MODERACION SECUENCIAL ===\n")
     chain = ModerationChain(filters)
-    print_chain(chain)
-    print_result(chain.moderate(Comment(text="Oferta especial, click aqui para ganar dinero gratis")))
+    for comment in comments:
+        print_result(chain.moderate(comment))
 
-    # --- Agregar un filtro dinámicamente ---
-    print("=== DESPUÉS DE AGREGAR FiltroExtra AL INICIO ===")
-    chain.add_filter(SpamFilter("FiltroExtra"), position=0)
-    print_chain(chain)
-
-    # --- Eliminar un filtro dinámicamente ---
-    print("=== DESPUÉS DE ELIMINAR FiltroPalabrasSoeces ===")
-    chain.remove_filter("FiltroPalabrasSoeces")
-    print_chain(chain)
-    print_result(chain.moderate(Comment(text="Eres un idiota y un inutil")))
-
-    # --- Reordenar dinámicamente ---
-    print("=== DESPUÉS DE REORDENAR ===")
-    chain.reorder(["FiltroEnlaces", "FiltroLongitud", "FiltroSpam", "FiltroExtra"])
-    print_chain(chain)
-    print_result(chain.moderate(Comment(text="Mira este enlace: https://ejemplo.com oferta gratis")))
-
-    # --- Modo paralelo ---
-    print("=== MODERACIÓN PARALELA ===\n")
+    print("\n=== MODERACION PARALELA ===\n")
     parallel_chain = ModerationChain(filters, parallel=True)
-    print_result(parallel_chain.moderate(Comment(text="idiota mira https://spam.com oferta gratis")))
+    parallel_comment = Comment(text="idiota mira https://spam.com oferta gratis")
+    print_result(parallel_chain.moderate(parallel_comment))
+
+    print("\n=== FILTROS CONFIGURABLES DINAMICAMENTE ===")
+    print("Cada cadena es una configuracion distinta e inmutable.\n")
+
+    print("1) Cadena original (4 filtros, orden config.py):")
+    chain1 = ModerationChain([
+        SpamFilter("FiltroSpam"),
+        ProfanityFilter("FiltroPalabrasSoeces"),
+        LengthFilter("FiltroLongitud", max_length=MAX_COMMENT_LENGTH),
+        LinkFilter("FiltroEnlaces"),
+    ])
+    print_chain(chain1)
+    print_result(chain1.moderate(Comment(text="HOLA mira https://spam.com oferta gratis")))
+
+    print("2) Cadena con CapsFilter agregado al inicio:")
+    chain2 = ModerationChain([
+        CapsFilter("FiltroCaps"),
+        SpamFilter("FiltroSpam"),
+        ProfanityFilter("FiltroPalabrasSoeces"),
+        LengthFilter("FiltroLongitud", max_length=MAX_COMMENT_LENGTH),
+        LinkFilter("FiltroEnlaces"),
+    ])
+    print_chain(chain2)
+    print_result(chain2.moderate(Comment(text="HOLA mira https://spam.com oferta gratis")))
+
+    print("3) Cadena sin FiltroPalabrasSoeces:")
+    chain3 = ModerationChain([
+        CapsFilter("FiltroCaps"),
+        SpamFilter("FiltroSpam"),
+        LengthFilter("FiltroLongitud", max_length=MAX_COMMENT_LENGTH),
+        LinkFilter("FiltroEnlaces"),
+    ])
+    print_chain(chain3)
+    print_result(chain3.moderate(Comment(text="HOLA mira https://spam.com oferta gratis")))
+
+    print("4) Cadena con orden reorganizado (enlaces primero):")
+    chain4 = ModerationChain([
+        LinkFilter("FiltroEnlaces"),
+        LengthFilter("FiltroLongitud", max_length=MAX_COMMENT_LENGTH),
+        SpamFilter("FiltroSpam"),
+        CapsFilter("FiltroCaps"),
+    ])
+    print_chain(chain4)
+    print_result(chain4.moderate(Comment(text="HOLA mira https://spam.com oferta gratis")))
 
 
 if __name__ == "__main__":
