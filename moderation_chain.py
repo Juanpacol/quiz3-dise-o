@@ -5,7 +5,7 @@ from filter import Filter
 
 class ModerationChain:
     def __init__(self, filters: list, parallel: bool = False):
-        self.filters = filters
+        self.filters = list(filters)
         self.parallel = parallel
         self._build_chain()
 
@@ -14,6 +14,22 @@ class ModerationChain:
             self.filters[i].set_next(self.filters[i + 1])
         if self.filters:
             self.filters[-1].next_filter = None
+
+    def add_filter(self, filter: Filter, position: int = None):
+        if position is None:
+            self.filters.append(filter)
+        else:
+            self.filters.insert(position, filter)
+        self._build_chain()
+
+    def remove_filter(self, name: str):
+        self.filters = [f for f in self.filters if f.name != name]
+        self._build_chain()
+
+    def reorder(self, names: list):
+        filter_map = {f.name: f for f in self.filters}
+        self.filters = [filter_map[name] for name in names if name in filter_map]
+        self._build_chain()
 
     def moderate(self, comment: Comment) -> Comment:
         if self.parallel:
@@ -26,9 +42,7 @@ class ModerationChain:
                 executor.submit(f.handle, Comment(text=comment.text))
                 for f in self.filters
             ]
-            results = [
-                f.result() for f in concurrent.futures.as_completed(futures)
-            ]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
 
         for result in results:
             if result.blocked:
